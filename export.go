@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/psyduck-std/sdk"
+	"github.com/psyduck-etl/sdk"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -35,7 +35,7 @@ func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp09
 	return conn, channel, queue, nil
 }
 
-func disconnect(conn *amqp091.Connection, channel *amqp091.Channel, errs chan error) {
+func disconnect(conn *amqp091.Connection, channel *amqp091.Channel, errs chan<- error) {
 	if err := conn.Close(); err != nil {
 		errs <- err
 	}
@@ -57,19 +57,19 @@ func Plugin() *sdk.Plugin {
 						Name:        "connection",
 						Description: "AMQP broker server connection string - amqp://{user}:{password}@{hostname}:{port}",
 						Required:    true,
-						Type:        sdk.String,
+						Type:        cty.String,
 					},
 					"queue": {
 						Name:        "queue",
 						Description: "Name of the rmqp queue to interact with",
 						Required:    true,
-						Type:        sdk.String,
+						Type:        cty.String,
 					},
 					"content-type": {
 						Name:        "content-type",
 						Description: "Content type ",
 						Required:    false,
-						Type:        sdk.String,
+						Type:        cty.String,
 						Default:     cty.StringVal("text/plain"),
 					},
 				},
@@ -85,25 +85,19 @@ func Plugin() *sdk.Plugin {
 					}
 
 					// TODO if we encounter an err before we return data, errs, the function will deadlock if errs is unbuffered
-					return func() (chan []byte, chan error) {
-						data, errs := make(chan []byte), make(chan error, 10)
+					return func(send chan<- []byte, errs chan<- error) {
 						messages, err := channel.Consume(queue.Name, "", false, false, false, false, nil)
 						if err != nil {
 							errs <- err
 						}
 
-						go func() {
-							defer disconnect(conn, channel, errs)
-							for msg := range messages {
-								data <- msg.Body
-								if err := msg.Ack(false); err != nil {
-									errs <- err
-								}
+						defer disconnect(conn, channel, errs)
+						for msg := range messages {
+							send <- msg.Body
+							if err := msg.Ack(false); err != nil {
+								errs <- err
 							}
-						}()
-
-						return data, errs
-
+						}
 					}, nil
 				},
 				ProvideConsumer: func(parse sdk.Parser, _ sdk.SpecParser) (sdk.Consumer, error) {
@@ -116,23 +110,20 @@ func Plugin() *sdk.Plugin {
 					if err != nil {
 						return nil, err
 					}
-					return func() (chan []byte, chan error, chan bool) {
-						data, errs, done := make(chan []byte), make(chan error, 10), make(chan bool)
-						go func() {
-							defer disconnect(conn, channel, errs)
 
-							for d := range data {
-								if err := channel.PublishWithContext(context.Background(), "", queue.Name, false, false, amqp091.Publishing{
-									ContentType: config.ContentType,
-									Body:        d,
-								}); err != nil {
-									errs <- err
-								}
+					return func(recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
+						defer disconnect(conn, channel, errs)
+
+						for d := range recv {
+							if err := channel.PublishWithContext(context.Background(), "", queue.Name, false, false, amqp091.Publishing{
+								ContentType: config.ContentType,
+								Body:        d,
+							}); err != nil {
+								errs <- err
 							}
-							done <- true
-						}()
+						}
+						close(done)
 
-						return data, errs, done
 					}, nil
 				},
 			},

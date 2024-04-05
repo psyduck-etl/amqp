@@ -8,8 +8,8 @@ github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORN
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/psyduck-std/sdk v1.0.0 h1:n9eGpWC90RFHgPUTiKT1QQl+sIE8kOqr0DxfXIfHwQg=
-github.com/psyduck-std/sdk v1.0.0/go.mod h1:d8iccwDFuTVsBkO2DnnpV3eYjG5h/LM/TeJWcdESaME=
+github.com/psyduck-etl/sdk v0.2.1 h1:1GbVuoUm/srqOtinKn8iNR5UsJ6MKAl4mTkVUqMrW+k=
+github.com/psyduck-etl/sdk v0.2.1/go.mod h1:2VGXcNk6q3kRiofv5MAreI6HioPAtjppzc8G7w7V9Qc=
 github.com/rabbitmq/amqp091-go v1.9.0 h1:qrQtyzB4H8BQgEuJwhmVQqVHB9O4+MNDJCCAcpc3Aoo=
 github.com/rabbitmq/amqp091-go v1.9.0/go.mod h1:+jPrT9iY2eLjRaMSRHUhc3z14E/l85kv/f+6luSD3pc=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
