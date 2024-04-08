@@ -68,7 +68,7 @@ func Plugin() *sdk.Plugin {
 					},
 					"content-type": {
 						Name:        "content-type",
-						Description: "Content type ",
+						Description: "Content type",
 						Required:    false,
 						Type:        cty.String,
 						Default:     cty.StringVal("text/plain"),
