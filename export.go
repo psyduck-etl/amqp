@@ -102,11 +102,12 @@ func Plugin() *sdk.Plugin {
 						iters := 0
 						defer disconnect(conn, channel, errs)
 						for msg := range messages {
-							send <- msg.Body
 							if err := msg.Ack(false); err != nil {
 								errs <- err
+								return
 							}
 
+							send <- msg.Body
 							iters++
 							if config.StopAfter != 0 && iters >= config.StopAfter {
 								return
