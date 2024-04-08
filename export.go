@@ -12,6 +12,7 @@ type queueConfig struct {
 	Connection  string `psy:"connection"`
 	Queue       string `psy:"queue"`
 	ContentType string `psy:"content-type"`
+	StopAfter   int    `psy:"stop-after"`
 }
 
 func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp091.Queue, error) {
@@ -72,6 +73,13 @@ func Plugin() *sdk.Plugin {
 						Type:        cty.String,
 						Default:     cty.StringVal("text/plain"),
 					},
+					"stop-after": {
+						Name:        "stop-after",
+						Description: "Stop after n iterations",
+						Required:    false,
+						Type:        cty.Number,
+						Default:     cty.NumberIntVal(0),
+					},
 				},
 				ProvideProducer: func(parse sdk.Parser, _ sdk.SpecParser) (sdk.Producer, error) {
 					config := new(queueConfig)
@@ -91,11 +99,17 @@ func Plugin() *sdk.Plugin {
 							errs <- err
 						}
 
+						iters := 0
 						defer disconnect(conn, channel, errs)
 						for msg := range messages {
 							send <- msg.Body
 							if err := msg.Ack(false); err != nil {
 								errs <- err
+							}
+
+							iters++
+							if config.StopAfter != 0 && iters >= config.StopAfter {
+								return
 							}
 						}
 					}, nil
