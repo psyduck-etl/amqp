@@ -100,6 +100,8 @@ func Plugin() *sdk.Plugin {
 						}
 
 						iters := 0
+						defer close(send)
+						defer close(errs)
 						defer disconnect(conn, channel, errs)
 						for msg := range messages {
 							if err := msg.Ack(false); err != nil {
@@ -127,8 +129,9 @@ func Plugin() *sdk.Plugin {
 					}
 
 					return func(recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
+						defer close(done)
+						defer close(errs)
 						defer disconnect(conn, channel, errs)
-
 						for d := range recv {
 							if err := channel.PublishWithContext(context.Background(), "", queue.Name, false, false, amqp091.Publishing{
 								ContentType: config.ContentType,
@@ -137,8 +140,6 @@ func Plugin() *sdk.Plugin {
 								errs <- err
 							}
 						}
-						close(done)
-
 					}, nil
 				},
 			},
