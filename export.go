@@ -81,7 +81,7 @@ func Plugin() *sdk.Plugin {
 						Default:     cty.NumberIntVal(0),
 					},
 				},
-				ProvideProducer: func(parse sdk.Parser, _ sdk.SpecParser) (sdk.Producer, error) {
+				ProvideProducer: func(parse sdk.Parser) (sdk.Producer, error) {
 					config := new(queueConfig)
 					if err := parse(config); err != nil {
 						return nil, err
@@ -117,7 +117,7 @@ func Plugin() *sdk.Plugin {
 						}
 					}, nil
 				},
-				ProvideConsumer: func(parse sdk.Parser, _ sdk.SpecParser) (sdk.Consumer, error) {
+				ProvideConsumer: func(parse sdk.Parser) (sdk.Consumer, error) {
 					config := new(queueConfig)
 					if err := parse(config); err != nil {
 						return nil, err
