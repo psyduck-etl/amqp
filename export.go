@@ -13,6 +13,8 @@ type queueConfig struct {
 	Queue       string `psy:"queue"`
 	ContentType string `psy:"content-type"`
 	StopAfter   int    `psy:"stop-after"`
+	NoWait      bool   `psy:"no-wait"`
+	AutoAck     bool   `psy:"auto-ack"`
 }
 
 func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp091.Queue, error) {
@@ -80,6 +82,20 @@ func Plugin() *sdk.Plugin {
 						Type:        cty.Number,
 						Default:     cty.NumberIntVal(0),
 					},
+					"no-wait": {
+						Name:        "no-wait",
+						Description: "TODO",
+						Required:    false,
+						Type:        cty.Bool,
+						Default:     cty.BoolVal(false),
+					},
+					"auto-ack": {
+						Name:        "auto-ack",
+						Description: "TODO",
+						Required:    false,
+						Type:        cty.Bool,
+						Default:     cty.BoolVal(false),
+					},
 				},
 				ProvideProducer: func(parse sdk.Parser) (sdk.Producer, error) {
 					config := new(queueConfig)
@@ -94,7 +110,7 @@ func Plugin() *sdk.Plugin {
 
 					// TODO if we encounter an err before we return data, errs, the function will deadlock if errs is unbuffered
 					return func(send chan<- []byte, errs chan<- error) {
-						messages, err := channel.Consume(queue.Name, "", false, false, false, false, nil)
+						messages, err := channel.Consume(queue.Name, "", config.AutoAck, false, false, config.NoWait, nil)
 						if err != nil {
 							errs <- err
 						}
