@@ -120,9 +120,11 @@ func Plugin() *sdk.Plugin {
 						defer close(errs)
 						defer disconnect(conn, channel, errs)
 						for msg := range messages {
-							if err := msg.Ack(false); err != nil {
-								errs <- err
-								return
+							if !config.AutoAck {
+								if err := msg.Ack(false); err != nil {
+									errs <- err
+									return
+								}
 							}
 
 							send <- msg.Body
