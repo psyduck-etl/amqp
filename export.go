@@ -13,6 +13,7 @@ type queueConfig struct {
 	Queue       string `psy:"queue"`
 	ContentType string `psy:"content-type"`
 	StopAfter   int    `psy:"stop-after"`
+	ChunkSize   uint   `psy:"chunk-size"`
 	NoWait      bool   `psy:"no-wait"`
 	AutoAck     bool   `psy:"auto-ack"`
 }
@@ -82,6 +83,13 @@ func Plugin() *sdk.Plugin {
 						Type:        cty.Number,
 						Default:     cty.NumberIntVal(0),
 					},
+					"chunk-size": {
+						Name:        "chunk-size",
+						Description: "Number of messages to get from the channel before ACK",
+						Required:    false,
+						Type:        cty.Number,
+						Default:     cty.NumberUIntVal(1),
+					},
 					"no-wait": {
 						Name:        "no-wait",
 						Description: "TODO",
@@ -119,18 +127,24 @@ func Plugin() *sdk.Plugin {
 						defer close(send)
 						defer close(errs)
 						defer disconnect(conn, channel, errs)
-						for msg := range messages {
+
+						for {
+							msgBuf := make([]amqp091.Delivery, config.ChunkSize)
+							for i := uint(0); i < config.ChunkSize; i++ {
+								msgBuf[i] = <-messages
+							}
 							if !config.AutoAck {
-								if err := msg.Ack(false); err != nil {
+								if err := msgBuf[len(msgBuf)-1].Ack(true); err != nil {
 									errs <- err
 									return
 								}
 							}
-
-							send <- msg.Body
-							iters++
-							if config.StopAfter != 0 && iters >= config.StopAfter {
-								return
+							for _, msg := range msgBuf {
+								send <- msg.Body
+								iters++
+								if config.StopAfter != 0 && iters >= config.StopAfter {
+									return
+								}
 							}
 						}
 					}, nil
