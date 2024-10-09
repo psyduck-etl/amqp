@@ -4,7 +4,7 @@ go 1.22.1
 
 require (
 	github.com/psyduck-etl/sdk v0.4.0-rc2
-	github.com/rabbitmq/amqp091-go v1.9.0
+	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/zclconf/go-cty v1.15.0
 )
 
@@ -18,5 +18,3 @@ require (
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 )
-
-replace github.com/zclconf/go-cty => github.com/gastrodon/go-cty v1.14.4-1
