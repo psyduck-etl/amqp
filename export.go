@@ -56,48 +56,48 @@ func Plugin() *sdk.Plugin {
 			{
 				Kinds: sdk.PRODUCER | sdk.CONSUMER,
 				Name:  "amqp-queue",
-				Spec: map[string]*sdk.Spec{
-					"connection": {
+				Spec: []*sdk.Spec{
+					{
 						Name:        "connection",
 						Description: "AMQP broker server connection string - amqp://{user}:{password}@{hostname}:{port}",
 						Required:    true,
 						Type:        cty.String,
 					},
-					"queue": {
+					{
 						Name:        "queue",
 						Description: "Name of the rmqp queue to interact with",
 						Required:    true,
 						Type:        cty.String,
 					},
-					"content-type": {
+					{
 						Name:        "content-type",
 						Description: "Content type",
 						Required:    false,
 						Type:        cty.String,
 						Default:     cty.StringVal("text/plain"),
 					},
-					"stop-after": {
+					{
 						Name:        "stop-after",
 						Description: "Stop after n iterations",
 						Required:    false,
 						Type:        cty.Number,
 						Default:     cty.NumberIntVal(0),
 					},
-					"chunk-size": {
+					{
 						Name:        "chunk-size",
 						Description: "Number of messages to get from the channel before ACK",
 						Required:    false,
 						Type:        cty.Number,
 						Default:     cty.NumberUIntVal(1),
 					},
-					"no-wait": {
+					{
 						Name:        "no-wait",
 						Description: "TODO",
 						Required:    false,
 						Type:        cty.Bool,
 						Default:     cty.BoolVal(false),
 					},
-					"auto-ack": {
+					{
 						Name:        "auto-ack",
 						Description: "TODO",
 						Required:    false,
