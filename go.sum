@@ -20,6 +20,8 @@ github.com/psyduck-etl/sdk v0.3.0 h1:d0Oh8qwmfBCZfZm8R/LE/LUJ68B4zqEft5AkS5iSjsM
 github.com/psyduck-etl/sdk v0.3.0/go.mod h1:Acbes42o0I9FEyyft/6GKpxm3GTt/44JwZrU6rdJQwA=
 github.com/psyduck-etl/sdk v0.4.0-rc2 h1:pQSFYDdRg28SKdkeXHXsBVXCdT4f08hFkpMseqBeQ6E=
 github.com/psyduck-etl/sdk v0.4.0-rc2/go.mod h1:Kx8iDqjEf42a2eGVgLgT1QZgCkHtfrPqbRBW3zk419E=
+github.com/psyduck-etl/sdk v0.4.1 h1:76cPQx86T99vW58Z+oF1fsht06wb42Sz9ZsDlmE+d64=
+github.com/psyduck-etl/sdk v0.4.1/go.mod h1:Kx8iDqjEf42a2eGVgLgT1QZgCkHtfrPqbRBW3zk419E=
 github.com/rabbitmq/amqp091-go v1.9.0 h1:qrQtyzB4H8BQgEuJwhmVQqVHB9O4+MNDJCCAcpc3Aoo=
 github.com/rabbitmq/amqp091-go v1.9.0/go.mod h1:+jPrT9iY2eLjRaMSRHUhc3z14E/l85kv/f+6luSD3pc=
 github.com/rabbitmq/amqp091-go v1.10.0 h1:STpn5XsHlHGcecLmMFCtg7mqq0RnD+zFr4uzukfVhBw=

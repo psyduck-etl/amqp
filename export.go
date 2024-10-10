@@ -9,13 +9,13 @@ import (
 )
 
 type queueConfig struct {
-	Connection  string `psy:"connection"`
-	Queue       string `psy:"queue"`
-	ContentType string `psy:"content-type"`
-	StopAfter   int    `psy:"stop-after"`
-	ChunkSize   uint   `psy:"chunk-size"`
-	NoWait      bool   `psy:"no-wait"`
-	AutoAck     bool   `psy:"auto-ack"`
+	Connection  string `cty:"connection"`
+	Queue       string `cty:"queue"`
+	ContentType string `cty:"content-type"`
+	StopAfter   int    `cty:"stop-after"`
+	ChunkSize   uint   `cty:"chunk-size"`
+	NoWait      bool   `cty:"no-wait"`
+	AutoAck     bool   `cty:"auto-ack"`
 }
 
 func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp091.Queue, error) {
