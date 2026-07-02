@@ -12,7 +12,7 @@ func Plugin() sdk.Plugin {
 	return sdk.NewInProc("amqp",
 		&sdk.Resource{
 			Kinds: sdk.PRODUCER | sdk.CONSUMER,
-			Name:  "amqp-queue",
+			Name:  "queue",
 			Spec: []*sdk.Spec{
 				{
 					Name:        "connection",
