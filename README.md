@@ -173,9 +173,8 @@ produce "amqp.queue" "orders-in" {
 
 transform "mysql.filter" "dedup" {
   connection = "etl:etl@tcp(localhost:3306)/warehouse"
-  table      = "orders"
-  fields     = ["order_id"]
-  pass-when  = "absent"      # keep only orders we haven't stored yet
+  query      = "SELECT EXISTS(SELECT 1 FROM orders WHERE order_id = :order_id)"
+  pass-when  = "0"           # 0 = order not yet stored -> keep it
 }
 
 consume "mysql.table" "load" {
