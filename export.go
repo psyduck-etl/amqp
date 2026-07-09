@@ -5,7 +5,6 @@ import (
 
 	"github.com/psyduck-etl/sdk"
 	"github.com/rabbitmq/amqp091-go"
-	"github.com/zclconf/go-cty/cty"
 )
 
 type queueConfig struct {
@@ -49,132 +48,147 @@ func disconnect(conn *amqp091.Connection, channel *amqp091.Channel, errs chan<- 
 	}
 }
 
-func Plugin() *sdk.Plugin {
-	return &sdk.Plugin{
-		Name: "amqp",
-		Resources: []*sdk.Resource{
+func Plugin() sdk.Plugin {
+	return sdk.NewInProc("amqp", &sdk.Resource{
+		Kinds: sdk.PRODUCER | sdk.CONSUMER,
+		Name:  "amqp-queue",
+		Spec: []*sdk.Spec{
 			{
-				Kinds: sdk.PRODUCER | sdk.CONSUMER,
-				Name:  "amqp-queue",
-				Spec: []*sdk.Spec{
-					{
-						Name:        "connection",
-						Description: "AMQP broker server connection string - amqp://{user}:{password}@{hostname}:{port}",
-						Required:    true,
-						Type:        cty.String,
-					},
-					{
-						Name:        "queue",
-						Description: "Name of the rmqp queue to interact with",
-						Required:    true,
-						Type:        cty.String,
-					},
-					{
-						Name:        "content-type",
-						Description: "Content type",
-						Required:    false,
-						Type:        cty.String,
-						Default:     cty.StringVal("text/plain"),
-					},
-					{
-						Name:        "stop-after",
-						Description: "Stop after n iterations",
-						Required:    false,
-						Type:        cty.Number,
-						Default:     cty.NumberIntVal(0),
-					},
-					{
-						Name:        "chunk-size",
-						Description: "Number of messages to get from the channel before ACK",
-						Required:    false,
-						Type:        cty.Number,
-						Default:     cty.NumberUIntVal(1),
-					},
-					{
-						Name:        "no-wait",
-						Description: "TODO",
-						Required:    false,
-						Type:        cty.Bool,
-						Default:     cty.BoolVal(false),
-					},
-					{
-						Name:        "auto-ack",
-						Description: "TODO",
-						Required:    false,
-						Type:        cty.Bool,
-						Default:     cty.BoolVal(false),
-					},
-				},
-				ProvideProducer: func(parse sdk.Parser) (sdk.Producer, error) {
-					config := new(queueConfig)
-					if err := parse(config); err != nil {
-						return nil, err
-					}
-
-					conn, channel, queue, err := connect(config)
-					if err != nil {
-						return nil, err
-					}
-
-					// TODO if we encounter an err before we return data, errs, the function will deadlock if errs is unbuffered
-					return func(send chan<- []byte, errs chan<- error) {
-						messages, err := channel.Consume(queue.Name, "", config.AutoAck, false, false, config.NoWait, nil)
-						if err != nil {
-							errs <- err
-						}
-
-						iters := 0
-						defer close(send)
-						defer close(errs)
-						defer disconnect(conn, channel, errs)
-
-						for {
-							msgBuf := make([]amqp091.Delivery, config.ChunkSize)
-							for i := uint(0); i < config.ChunkSize; i++ {
-								msgBuf[i] = <-messages
-							}
-							if !config.AutoAck {
-								if err := msgBuf[len(msgBuf)-1].Ack(true); err != nil {
-									errs <- err
-									return
-								}
-							}
-							for _, msg := range msgBuf {
-								send <- msg.Body
-								iters++
-								if config.StopAfter != 0 && iters >= config.StopAfter {
-									return
-								}
-							}
-						}
-					}, nil
-				},
-				ProvideConsumer: func(parse sdk.Parser) (sdk.Consumer, error) {
-					config := new(queueConfig)
-					if err := parse(config); err != nil {
-						return nil, err
-					}
-
-					conn, channel, queue, err := connect(config)
-					if err != nil {
-						return nil, err
-					}
-
-					return func(recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
-						defer close(done)
-						defer close(errs)
-						defer disconnect(conn, channel, errs)
-						for d := range recv {
-							if err := channel.PublishWithContext(context.Background(), "", queue.Name, false, false, amqp091.Publishing{
-								ContentType: config.ContentType,
-								Body:        d,
-							}); err != nil {
-								errs <- err
-							}
-						}
-					}, nil
-				},
+				Name:        "connection",
+				Description: "AMQP broker server connection string - amqp://{user}:{password}@{hostname}:{port}",
+				Required:    true,
+				Type:        sdk.TypeString,
+			},
+			{
+				Name:        "queue",
+				Description: "Name of the rmqp queue to interact with",
+				Required:    true,
+				Type:        sdk.TypeString,
+			},
+			{
+				Name:        "content-type",
+				Description: "Content type",
+				Required:    false,
+				Type:        sdk.TypeString,
+				Default:     "text/plain",
+			},
+			{
+				Name:        "stop-after",
+				Description: "Stop after n iterations",
+				Required:    false,
+				Type:        sdk.TypeInt,
+				Default:     0,
+			},
+			{
+				Name:        "chunk-size",
+				Description: "Number of messages to get from the channel before ACK",
+				Required:    false,
+				Type:        sdk.TypeInt,
+				Default:     1,
+			},
+			{
+				Name:        "no-wait",
+				Description: "TODO",
+				Required:    false,
+				Type:        sdk.TypeBool,
+				Default:     false,
+			},
+			{
+				Name:        "auto-ack",
+				Description: "TODO",
+				Required:    false,
+				Type:        sdk.TypeBool,
+				Default:     false,
 			},
 		},
-	}
+		ProvideProducer: func(parse sdk.Parser) (sdk.Producer, error) {
+			config := new(queueConfig)
+			if err := parse(config); err != nil {
+				return nil, err
+			}
+
+			conn, channel, queue, err := connect(config)
+			if err != nil {
+				return nil, err
+			}
+
+			// TODO if we encounter an err before we return data, errs, the function will deadlock if errs is unbuffered
+			return func(ctx context.Context, send chan<- []byte, errs chan<- error) {
+				messages, err := channel.Consume(queue.Name, "", config.AutoAck, false, false, config.NoWait, nil)
+				if err != nil {
+					errs <- err
+				}
+
+				iters := 0
+				defer close(send)
+				defer close(errs)
+				defer disconnect(conn, channel, errs)
+
+				for {
+					msgBuf := make([]amqp091.Delivery, config.ChunkSize)
+					for i := uint(0); i < config.ChunkSize; i++ {
+						select {
+						case msgBuf[i] = <-messages:
+						case <-ctx.Done():
+							errs <- ctx.Err()
+							return
+						}
+					}
+					if !config.AutoAck {
+						if err := msgBuf[len(msgBuf)-1].Ack(true); err != nil {
+							errs <- err
+							return
+						}
+					}
+					for _, msg := range msgBuf {
+						select {
+						case send <- msg.Body:
+							iters++
+							if config.StopAfter != 0 && iters >= config.StopAfter {
+								return
+							}
+						case <-ctx.Done():
+							errs <- ctx.Err()
+							return
+						}
+					}
+				}
+			}, nil
+		},
+		ProvideConsumer: func(parse sdk.Parser) (sdk.Consumer, error) {
+			config := new(queueConfig)
+			if err := parse(config); err != nil {
+				return nil, err
+			}
+
+			conn, channel, queue, err := connect(config)
+			if err != nil {
+				return nil, err
+			}
+
+			return func(ctx context.Context, recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
+				defer close(done)
+				defer close(errs)
+				defer disconnect(conn, channel, errs)
+				for {
+					select {
+					case d, ok := <-recv:
+						if !ok {
+							done <- struct{}{}
+							return
+						}
+						if err := channel.PublishWithContext(ctx, "", queue.Name, false, false, amqp091.Publishing{
+							ContentType: config.ContentType,
+							Body:        d,
+						}); err != nil {
+							errs <- err
+						}
+					case <-ctx.Done():
+						errs <- ctx.Err()
+						return
+					}
+				}
+			}, nil
+		},
+	})
 }
