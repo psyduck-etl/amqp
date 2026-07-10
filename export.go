@@ -29,12 +29,6 @@ func Plugin() sdk.Plugin {
 				Default:     "text/plain",
 			},
 			{
-				Name:        "encoding",
-				Description: "Optional codec spec to decode producer messages and re-encode consumer messages (e.g., \"json\", \"csv\"). When unset, messages are passed through as-is without codec processing",
-				Required:    false,
-				Type:        sdk.TypeString,
-			},
-			{
 				Name:        "stop-after",
 				Description: "Stop after n iterations",
 				Required:    false,
@@ -69,17 +63,12 @@ func Plugin() sdk.Plugin {
 				return nil, err
 			}
 
-			codec, err := resolveCodec(config)
-			if err != nil {
-				return nil, err
-			}
-
 			conn, channel, queue, err := connect(config)
 			if err != nil {
 				return nil, err
 			}
 
-			return produceFromQueue(conn, channel, queue.Name, config, codec), nil
+			return produceFromQueue(conn, channel, queue.Name, config), nil
 		},
 		ProvideConsumer: func(parse sdk.Parser) (sdk.Consumer, error) {
 			config := new(queueConfig)
@@ -87,17 +76,12 @@ func Plugin() sdk.Plugin {
 				return nil, err
 			}
 
-			codec, err := resolveCodec(config)
-			if err != nil {
-				return nil, err
-			}
-
 			conn, channel, queue, err := connect(config)
 			if err != nil {
 				return nil, err
 			}
 
-			return consumeToQueue(conn, channel, queue.Name, config, codec), nil
+			return consumeToQueue(conn, channel, queue.Name, config), nil
 		},
 	})
 }

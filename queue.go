@@ -1,9 +1,6 @@
 package main
 
 import (
-	"strings"
-
-	"github.com/psyduck-etl/sdk"
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -11,7 +8,6 @@ type queueConfig struct {
 	Connection  string `cty:"connection"`
 	Queue       string `cty:"queue"`
 	ContentType string `cty:"content-type"`
-	Encoding    string `cty:"encoding"`
 	StopAfter   int    `cty:"stop-after"`
 	ChunkSize   uint   `cty:"chunk-size"`
 	NoWait      bool   `cty:"no-wait"`
@@ -26,6 +22,7 @@ func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp09
 
 	channel, err := conn.Channel()
 	if err != nil {
+		conn.Close()
 		return nil, nil, amqp091.Queue{}, err
 	}
 
@@ -33,26 +30,23 @@ func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp09
 	// but for now, just defaults
 	queue, err := channel.QueueDeclare(config.Queue, false, false, false, false, nil)
 	if err != nil {
+		channel.Close()
+		conn.Close()
 		return nil, nil, amqp091.Queue{}, err
 	}
 
 	return conn, channel, queue, nil
 }
 
+// disconnect closes the channel then the connection. Order matters: the
+// channel sits on top of the connection, so closing the connection first
+// causes channel.Close to fail with a spurious "connection closed" error.
 func disconnect(conn *amqp091.Connection, channel *amqp091.Channel, errs chan<- error) {
-	if err := conn.Close(); err != nil {
-		errs <- err
-	}
-
 	if err := channel.Close(); err != nil {
 		errs <- err
 	}
-}
 
-// resolveCodec returns the codec named by config.Encoding, or nil if unset.
-func resolveCodec(config *queueConfig) (sdk.Codec, error) {
-	if config.Encoding == "" {
-		return nil, nil
+	if err := conn.Close(); err != nil {
+		errs <- err
 	}
-	return sdk.GetCodec(strings.ToLower(config.Encoding))
 }
