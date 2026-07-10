@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 
 	"github.com/psyduck-etl/sdk"
 	"github.com/rabbitmq/amqp091-go"
@@ -11,6 +12,7 @@ type queueConfig struct {
 	Connection  string `cty:"connection"`
 	Queue       string `cty:"queue"`
 	ContentType string `cty:"content-type"`
+	Encoding    string `cty:"encoding"`
 	StopAfter   int    `cty:"stop-after"`
 	ChunkSize   uint   `cty:"chunk-size"`
 	NoWait      bool   `cty:"no-wait"`
@@ -48,6 +50,139 @@ func disconnect(conn *amqp091.Connection, channel *amqp091.Channel, errs chan<- 
 	}
 }
 
+// produceFromQueue builds a Producer that consumes messages from an AMQP queue
+// and emits them as records. Messages are consumed in chunks and acknowledged
+// in bulk for efficiency. If encoding is set, messages are decoded and re-encoded
+// with the target codec (transcoding).
+//
+// The hot path (per-message processing) is inlined directly in the loop to avoid
+// per-record allocations and function call overhead.
+func produceFromQueue(conn *amqp091.Connection, channel *amqp091.Channel, queueName string, config *queueConfig, codec sdk.Codec) sdk.Producer {
+	return func(ctx context.Context, send chan<- []byte, errs chan<- error) {
+		messages, err := channel.Consume(queueName, "", config.AutoAck, false, false, config.NoWait, nil)
+		if err != nil {
+			if ctx.Err() == nil {
+				errs <- err
+			}
+			close(send)
+			close(errs)
+			return
+		}
+
+		// Hoist message buffer allocation outside the loop and reuse it.
+		// This avoids one allocation per chunk and multiple allocs per message.
+		msgBuf := make([]amqp091.Delivery, config.ChunkSize)
+
+		iters := 0
+		defer close(send)
+		defer close(errs)
+		defer disconnect(conn, channel, errs)
+
+		for {
+			// Consume a chunk of messages
+			for i := uint(0); i < config.ChunkSize; i++ {
+				select {
+				case msgBuf[i] = <-messages:
+				case <-ctx.Done():
+					// ctx was cancelled; don't report it as an error
+					return
+				}
+			}
+
+			// Acknowledge the chunk if not auto-acking
+			if !config.AutoAck {
+				if err := msgBuf[len(msgBuf)-1].Ack(true); err != nil {
+					errs <- err
+					return
+				}
+			}
+
+			// Send messages downstream, applying codec if configured
+			for _, msg := range msgBuf {
+				var body []byte
+
+				if codec != nil {
+					// Decode and re-encode for transcoding
+					decoded, err := codec.Decode(msg.Body)
+					if err != nil {
+						errs <- err
+						return
+					}
+					encoded, err := codec.Encode(decoded)
+					if err != nil {
+						errs <- err
+						return
+					}
+					body = encoded
+				} else {
+					// Pass through as-is
+					body = msg.Body
+				}
+
+				select {
+				case send <- body:
+					iters++
+					if config.StopAfter != 0 && iters >= config.StopAfter {
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}
+}
+
+// consumeToQueue builds a Consumer that receives records and publishes them
+// to an AMQP queue. If encoding is set, records are decoded and re-encoded
+// with the target codec (transcoding).
+//
+// The hot path (per-message processing) is inlined directly in the loop to avoid
+// per-record allocations and function call overhead.
+func consumeToQueue(channel *amqp091.Channel, queueName string, config *queueConfig, codec sdk.Codec, conn *amqp091.Connection) sdk.Consumer {
+	return func(ctx context.Context, recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
+		defer close(done)
+		defer close(errs)
+		defer disconnect(conn, channel, errs)
+
+		for data := range recv {
+			var body []byte
+
+			if codec != nil {
+				// Decode and re-encode for transcoding
+				decoded, err := codec.Decode(data)
+				if err != nil {
+					if ctx.Err() == nil {
+						errs <- err
+					}
+					return
+				}
+				encoded, err := codec.Encode(decoded)
+				if err != nil {
+					if ctx.Err() == nil {
+						errs <- err
+					}
+					return
+				}
+				body = encoded
+			} else {
+				// Pass through as-is
+				body = data
+			}
+
+			if err := channel.PublishWithContext(ctx, "", queueName, false, false, amqp091.Publishing{
+				ContentType: config.ContentType,
+				Body:        body,
+			}); err != nil {
+				if ctx.Err() == nil {
+					errs <- err
+				}
+				return
+			}
+		}
+	}
+}
+
 func Plugin() sdk.Plugin {
 	return sdk.NewInProc("amqp", &sdk.Resource{
 		Kinds: sdk.PRODUCER | sdk.CONSUMER,
@@ -71,6 +206,12 @@ func Plugin() sdk.Plugin {
 				Required:    false,
 				Type:        sdk.TypeString,
 				Default:     "text/plain",
+			},
+			{
+				Name:        "encoding",
+				Description: "Optional codec spec to decode producer messages and re-encode consumer messages (e.g., \"json\", \"csv\"). When unset, messages are passed through as-is without codec processing",
+				Required:    false,
+				Type:        sdk.TypeString,
 			},
 			{
 				Name:        "stop-after",
@@ -107,53 +248,21 @@ func Plugin() sdk.Plugin {
 				return nil, err
 			}
 
+			var codec sdk.Codec
+			if config.Encoding != "" {
+				c, err := sdk.GetCodec(strings.ToLower(config.Encoding))
+				if err != nil {
+					return nil, err
+				}
+				codec = c
+			}
+
 			conn, channel, queue, err := connect(config)
 			if err != nil {
 				return nil, err
 			}
 
-			// TODO if we encounter an err before we return data, errs, the function will deadlock if errs is unbuffered
-			return func(ctx context.Context, send chan<- []byte, errs chan<- error) {
-				messages, err := channel.Consume(queue.Name, "", config.AutoAck, false, false, config.NoWait, nil)
-				if err != nil {
-					errs <- err
-				}
-
-				iters := 0
-				defer close(send)
-				defer close(errs)
-				defer disconnect(conn, channel, errs)
-
-				for {
-					msgBuf := make([]amqp091.Delivery, config.ChunkSize)
-					for i := uint(0); i < config.ChunkSize; i++ {
-						select {
-						case msgBuf[i] = <-messages:
-						case <-ctx.Done():
-							errs <- ctx.Err()
-							return
-						}
-					}
-					if !config.AutoAck {
-						if err := msgBuf[len(msgBuf)-1].Ack(true); err != nil {
-							errs <- err
-							return
-						}
-					}
-					for _, msg := range msgBuf {
-						select {
-						case send <- msg.Body:
-							iters++
-							if config.StopAfter != 0 && iters >= config.StopAfter {
-								return
-							}
-						case <-ctx.Done():
-							errs <- ctx.Err()
-							return
-						}
-					}
-				}
-			}, nil
+			return produceFromQueue(conn, channel, queue.Name, config, codec), nil
 		},
 		ProvideConsumer: func(parse sdk.Parser) (sdk.Consumer, error) {
 			config := new(queueConfig)
@@ -161,34 +270,21 @@ func Plugin() sdk.Plugin {
 				return nil, err
 			}
 
+			var codec sdk.Codec
+			if config.Encoding != "" {
+				c, err := sdk.GetCodec(strings.ToLower(config.Encoding))
+				if err != nil {
+					return nil, err
+				}
+				codec = c
+			}
+
 			conn, channel, queue, err := connect(config)
 			if err != nil {
 				return nil, err
 			}
 
-			return func(ctx context.Context, recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
-				defer close(done)
-				defer close(errs)
-				defer disconnect(conn, channel, errs)
-				for {
-					select {
-					case d, ok := <-recv:
-						if !ok {
-							done <- struct{}{}
-							return
-						}
-						if err := channel.PublishWithContext(ctx, "", queue.Name, false, false, amqp091.Publishing{
-							ContentType: config.ContentType,
-							Body:        d,
-						}); err != nil {
-							errs <- err
-						}
-					case <-ctx.Done():
-						errs <- ctx.Err()
-						return
-					}
-				}
-			}, nil
+			return consumeToQueue(channel, queue.Name, config, codec, conn), nil
 		},
 	})
 }
