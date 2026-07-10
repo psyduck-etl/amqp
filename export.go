@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/psyduck-etl/sdk"
 	amqp091 "github.com/rabbitmq/amqp091-go"
 )
+
+// errDeliveryClosed is reported when the broker closes the delivery channel
+// (connection or channel died). Without this, a for-range over the closed
+// channel would silently return as if the queue had drained cleanly.
+var errDeliveryClosed = errors.New("amqp: delivery channel closed by broker")
 
 func Plugin() sdk.Plugin {
 	return sdk.NewInProc("amqp",
@@ -190,7 +196,12 @@ func Plugin() sdk.Plugin {
 					}
 
 					iters := 0
-					for msg := range messages {
+					for {
+						msg, ok := <-messages
+						if !ok {
+							errs <- errDeliveryClosed
+							return
+						}
 						send <- msg.Body
 						if !config.AutoAck {
 							if err := msg.Ack(false); err != nil {
@@ -241,7 +252,7 @@ func Plugin() sdk.Plugin {
 							Body:         d,
 						}); err != nil {
 							errs <- err
-							continue
+							return
 						}
 
 						if confirms != nil {
