@@ -1,5 +1,7 @@
 github.com/psyduck-etl/sdk v0.5.0 h1:b9v11by93ZTomevfP9GskUnBTF+KjQvhDfru4J+IgVM=
 github.com/psyduck-etl/sdk v0.5.0/go.mod h1:gwCEsqNNSfP2cWK9zVVirWwYCb/vtOeLXR0eaiJTz3g=
+github.com/psyduck-etl/sdk v0.5.2 h1:o1Xfmu2cjQG1zz9ec8Snqt7j6W3da1vqAiqJDrvjJ0U=
+github.com/psyduck-etl/sdk v0.5.2/go.mod h1:gwCEsqNNSfP2cWK9zVVirWwYCb/vtOeLXR0eaiJTz3g=
 github.com/rabbitmq/amqp091-go v1.10.0 h1:STpn5XsHlHGcecLmMFCtg7mqq0RnD+zFr4uzukfVhBw=
 github.com/rabbitmq/amqp091-go v1.10.0/go.mod h1:Hy4jKW5kQART1u+JkDTF9YYOQUHXqMuhrgxOEeS7G4o=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=

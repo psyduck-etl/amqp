@@ -177,41 +177,53 @@ func Plugin() sdk.Plugin {
 					return nil, err
 				}
 
-				return func(send chan<- []byte, errs chan<- error) {
+				return func(ctx context.Context, send chan<- []byte, errs chan<- error) {
 					defer close(send)
 					defer close(errs)
 					defer disconnect(conn, channel, errs)
 
 					if config.Prefetch > 0 {
 						if err := channel.Qos(config.Prefetch, 0, false); err != nil {
-							errs <- err
+							if ctx.Err() == nil {
+								errs <- err
+							}
 							return
 						}
 					}
 
 					messages, err := channel.Consume(queue.Name, "", config.AutoAck, config.Exclusive, false, config.NoWait, nil)
 					if err != nil {
-						errs <- err
+						if ctx.Err() == nil {
+							errs <- err
+						}
 						return
 					}
 
 					iters := 0
 					for {
-						msg, ok := <-messages
-						if !ok {
-							errs <- errDeliveryClosed
-							return
-						}
-						send <- msg.Body
-						if !config.AutoAck {
-							if err := msg.Ack(false); err != nil {
-								errs <- err
+						select {
+						case msg, ok := <-messages:
+							if !ok {
+								errs <- errDeliveryClosed
 								return
 							}
-						}
+							select {
+							case send <- msg.Body:
+							case <-ctx.Done():
+								return
+							}
+							if !config.AutoAck {
+								if err := msg.Ack(false); err != nil {
+									errs <- err
+									return
+								}
+							}
 
-						iters++
-						if config.StopAfter != 0 && iters >= config.StopAfter {
+							iters++
+							if config.StopAfter != 0 && iters >= config.StopAfter {
+								return
+							}
+						case <-ctx.Done():
 							return
 						}
 					}
@@ -228,7 +240,7 @@ func Plugin() sdk.Plugin {
 					return nil, err
 				}
 
-				return func(recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
+				return func(ctx context.Context, recv <-chan []byte, errs chan<- error, done chan<- struct{}) {
 					defer close(done)
 					defer close(errs)
 					defer disconnect(conn, channel, errs)
@@ -236,7 +248,9 @@ func Plugin() sdk.Plugin {
 					var confirms chan amqp091.Confirmation
 					if config.Confirm {
 						if err := channel.Confirm(false); err != nil {
-							errs <- err
+							if ctx.Err() == nil {
+								errs <- err
+							}
 							return
 						}
 						confirms = channel.NotifyPublish(make(chan amqp091.Confirmation, 1))
@@ -246,18 +260,28 @@ func Plugin() sdk.Plugin {
 					mode := deliveryMode(config)
 
 					for d := range recv {
-						if err := channel.PublishWithContext(context.Background(), exchange, key, config.Mandatory, false, amqp091.Publishing{
+						if err := channel.PublishWithContext(ctx, exchange, key, config.Mandatory, false, amqp091.Publishing{
 							ContentType:  config.ContentType,
 							DeliveryMode: mode,
 							Body:         d,
 						}); err != nil {
-							errs <- err
+							if ctx.Err() == nil {
+								errs <- err
+							}
 							return
 						}
 
 						if confirms != nil {
-							if c := <-confirms; !c.Ack {
-								errs <- fmt.Errorf("broker nacked published message (delivery tag %d)", c.DeliveryTag)
+							select {
+							case c, ok := <-confirms:
+								if !ok {
+									return
+								}
+								if !c.Ack {
+									errs <- fmt.Errorf("broker nacked published message (delivery tag %d)", c.DeliveryTag)
+								}
+							case <-ctx.Done():
+								return
 							}
 						}
 					}
