@@ -6,8 +6,13 @@ import (
 	"fmt"
 
 	"github.com/psyduck-etl/sdk"
+	"github.com/psyduck-etl/sdk/rpc"
 	amqp091 "github.com/rabbitmq/amqp091-go"
 )
+
+// main serves the plugin over gRPC to the psyduck host that launched this
+// binary as a subprocess.
+func main() { rpc.Serve(Plugin()) }
 
 // errDeliveryClosed is reported when the broker closes the delivery channel
 // (connection or channel died). Without this, a for-range over the closed
