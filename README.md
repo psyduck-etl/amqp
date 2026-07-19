@@ -7,10 +7,12 @@ An [AMQP 0.9.1](https://www.rabbitmq.com/) (RabbitMQ) plugin for
 - as a **producer** it consumes messages off a queue and emits their bodies;
 - as a **consumer** it publishes incoming data to a queue or exchange.
 
-Built against `github.com/psyduck-etl/sdk` **v0.5.0**.
+Built against `github.com/psyduck-etl/sdk` (see `go.mod` for the exact
+version). Runs as a gRPC subprocess (`sdk/rpc`) launched by the host — no
+`-buildmode=plugin`, no toolchain matching required.
 
 ```sh
-go build -buildmode=plugin -o amqp.so .
+go build -o amqp .
 ```
 
 ---
