@@ -3,7 +3,7 @@ module github.com/psyduck-std/amqp
 go 1.25.0
 
 require (
-	github.com/psyduck-etl/sdk v0.6.0
+	github.com/psyduck-etl/sdk v0.6.2
 	github.com/rabbitmq/amqp091-go v1.10.0
 )
 
