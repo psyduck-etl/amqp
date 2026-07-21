@@ -16,12 +16,14 @@ func TestQueueArgs(t *testing.T) {
 		MaxLength:          1000,
 		DeadLetterExchange: "dlx",
 		QueueType:          "quorum",
+		Overflow:           "reject-publish",
 	})
 	want := amqp091.Table{
 		"x-message-ttl":          60000,
 		"x-max-length":           1000,
 		"x-dead-letter-exchange": "dlx",
 		"x-queue-type":           "quorum",
+		"x-overflow":             "reject-publish",
 	}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
@@ -30,6 +32,14 @@ func TestQueueArgs(t *testing.T) {
 		if args[k] != v {
 			t.Fatalf("args[%q] = %v, want %v", k, args[k], v)
 		}
+	}
+
+	// Test that empty overflow (default) is not included in args
+	argsNoOverflow := queueArgs(&queueConfig{
+		MaxLength: 1000,
+	})
+	if argsNoOverflow["x-overflow"] != nil {
+		t.Fatalf("empty overflow should not be in args, got %v", argsNoOverflow)
 	}
 }
 

@@ -170,6 +170,13 @@ func Plugin() sdk.Plugin {
 					Type:        sdk.TypeString,
 					Default:     "",
 				},
+				{
+					Name:        "overflow",
+					Description: "Queue argument x-overflow: drop-head or reject-publish (empty = broker default drop-head)",
+					Required:    false,
+					Type:        sdk.TypeString,
+					Default:     "",
+				},
 			},
 			ProvideProducer: func(ctx context.Context, parse sdk.Parser) (sdk.Producer, error) {
 				config := new(queueConfig)

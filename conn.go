@@ -36,6 +36,7 @@ type queueConfig struct {
 	MaxLength          int    `psy:"max-length"`
 	DeadLetterExchange string `psy:"dead-letter-exchange"`
 	QueueType          string `psy:"queue-type"`
+	Overflow           string `psy:"overflow"`
 }
 
 // queueArgs assembles the x-* argument table from the typed config fields.
@@ -54,6 +55,9 @@ func queueArgs(c *queueConfig) amqp091.Table {
 	}
 	if c.QueueType != "" {
 		args["x-queue-type"] = c.QueueType
+	}
+	if c.Overflow != "" {
+		args["x-overflow"] = c.Overflow
 	}
 	if len(args) == 0 {
 		return nil
