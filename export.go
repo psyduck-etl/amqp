@@ -170,6 +170,13 @@ func Plugin() sdk.Plugin {
 					Type:        sdk.TypeString,
 					Default:     "",
 				},
+				{
+					Name:        "overflow",
+					Description: "Queue argument x-overflow: drop-head or reject-publish (empty = broker default drop-head)",
+					Required:    false,
+					Type:        sdk.TypeString,
+					Default:     "",
+				},
 			},
 			ProvideProducer: func(ctx context.Context, parse sdk.Parser) (sdk.Producer, error) {
 				config := new(queueConfig)
@@ -177,7 +184,7 @@ func Plugin() sdk.Plugin {
 					return nil, err
 				}
 
-				conn, channel, queue, err := connect(config)
+				conn, channel, queue, err := config.connect()
 				if err != nil {
 					return nil, err
 				}
@@ -240,7 +247,7 @@ func Plugin() sdk.Plugin {
 					return nil, err
 				}
 
-				conn, channel, queue, err := connect(config)
+				conn, channel, _, err := config.connect()
 				if err != nil {
 					return nil, err
 				}
@@ -261,8 +268,8 @@ func Plugin() sdk.Plugin {
 						confirms = channel.NotifyPublish(make(chan amqp091.Confirmation, 1))
 					}
 
-					exchange, key := publishTarget(config, queue.Name)
-					mode := deliveryMode(config)
+					exchange, key := config.publishTarget()
+					mode := config.deliveryMode()
 
 					for d := range recv {
 						if err := channel.PublishWithContext(ctx, exchange, key, config.Mandatory, false, amqp091.Publishing{
