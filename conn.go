@@ -42,7 +42,7 @@ type queueConfig struct {
 // queueArgs assembles the x-* argument table from the typed config fields.
 // It returns nil when no arguments are set so QueueDeclare uses broker
 // defaults.
-func queueArgs(c *queueConfig) amqp091.Table {
+func (c *queueConfig) queueArgs() amqp091.Table {
 	args := amqp091.Table{}
 	if c.MessageTTL > 0 {
 		args["x-message-ttl"] = c.MessageTTL
@@ -68,14 +68,14 @@ func queueArgs(c *queueConfig) amqp091.Table {
 // publishTarget resolves the exchange and routing key to publish with. With
 // no exchange configured, messages go to the default exchange keyed by the
 // queue name; with an exchange, they go to it keyed by routing-key.
-func publishTarget(c *queueConfig, queueName string) (exchange, key string) {
+func (c *queueConfig) publishTarget() (exchange, key string) {
 	if c.Exchange != "" {
 		return c.Exchange, c.RoutingKey
 	}
-	return "", queueName
+	return "", c.Queue
 }
 
-func deliveryMode(c *queueConfig) uint8 {
+func (c *queueConfig) deliveryMode() uint8 {
 	if c.Persistent {
 		return amqp091.Persistent
 	}
@@ -85,7 +85,7 @@ func deliveryMode(c *queueConfig) uint8 {
 // connect dials the broker, opens a channel, and declares the configured
 // topology: an optional exchange, the queue (with arguments), and — when an
 // exchange is set — a binding between them.
-func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp091.Queue, error) {
+func (config *queueConfig) connect() (*amqp091.Connection, *amqp091.Channel, amqp091.Queue, error) {
 	conn, err := amqp091.Dial(config.Connection)
 	if err != nil {
 		return nil, nil, amqp091.Queue{}, err
@@ -108,7 +108,7 @@ func connect(config *queueConfig) (*amqp091.Connection, *amqp091.Channel, amqp09
 		}
 	}
 
-	queue, err := channel.QueueDeclare(config.Queue, config.Durable, config.AutoDelete, config.Exclusive, config.NoWait, queueArgs(config))
+	queue, err := channel.QueueDeclare(config.Queue, config.Durable, config.AutoDelete, config.Exclusive, config.NoWait, config.queueArgs())
 	if err != nil {
 		disconnect(conn, channel, nil)
 		return nil, nil, amqp091.Queue{}, err
